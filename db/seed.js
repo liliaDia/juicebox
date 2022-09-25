@@ -1,18 +1,23 @@
-const { client, 
-  getAllUsers, 
-  createUser, 
+const { Client } = require("pg");
+const {
+  client,
+  getAllUsers,
+  createUser,
   createPost,
   updateUser,
   updatePost,
   getAllPosts,
-  getPostsByUser,
-  getUserById } = require("./index");
+  getUserById,
+  getPostsByTagName
+} = require("./index");
 
 async function dropTables() {
   try {
     console.log("Starting to drop tables...");
 
     await client.query(`
+        DROP TABLE IF EXISTS post_tags;
+        DROP TABLE IF EXISTS tags;
         DROP TABLE IF EXISTS posts;
         DROP TABLE IF EXISTS users;
       `);
@@ -50,6 +55,20 @@ async function createTables() {
             active BOOLEAN DEFAULT true
             );
         `);
+
+    await client.query(`
+      CREATE TABLE tags(
+        id SERIAL PRIMARY KEY,
+        name varchar(255) UNIQUE NOT NULL
+      )`);
+
+    await client.query(`
+      CREATE TABLE post_tags(
+        "postId" INTEGER REFERENCES posts(id),
+        "tagId" INTEGER REFERENCES tags(id),
+        UNIQUE("postId", "tagId")
+      )`);
+
     console.log("Finished building tables!");
   } catch (error) {
     console.error("Error building tables!");
@@ -87,32 +106,36 @@ async function createInitialUsers() {
   }
 }
 
-async function creatingInitialPost(){
-  try{
-  console.log("starting to create post...");
+async function creatingInitialPost() {
+  try {
+    console.log("starting to create post...");
     const [albert, sandra, glamgal] = await getAllUsers();
 
     await createPost({
       authorId: albert.id,
       title: "First Post",
-      content: "This is my first post. I hope I love writing blogs as much as I love writing them."
+      content:
+        "This is my first post. I hope I love writing blogs as much as I love writing them.",
+        tags: ["#happy", "#youcandoanything"]
     });
 
     await createPost({
       authorId: sandra.id,
       title: "sandra Post",
-      content: "This is my first post yessah."
+      content: "This is my first post yessah.",
+      tags: ["#happy", "#worst-day-ever"]
     });
 
     await createPost({
       authorId: glamgal.id,
       title: "glamgal Post",
-      content: "hello world."
+      content: "hello world.",
+      tags: ["#happy", "#youcandoanything", "#canmandoeverything"]
     });
-}catch (error) {
-  console.error("Error creating post!");
-  throw error;
-}
+  } catch (error) {
+    console.error("Error creating post!");
+    throw error;
+  }
 }
 
 async function rebuildDB() {
@@ -139,24 +162,35 @@ async function testDB() {
     console.log("Calling updateUser on users[0]");
     const updateUserResult = await updateUser(users[0].id, {
       name: "Newname Sogood",
-      location: "Lesterville, KY"
+      location: "Lesterville, KY",
     });
     console.log("Result:", updateUserResult);
 
     console.log("Calling getAllPosts");
     const posts = await getAllPosts();
-    console.log("Result:", posts);
+    JSON.stringify(posts, null, 3);
 
     console.log("Calling updatePost on posts[0]");
     const updatePostResult = await updatePost(posts[0].id, {
       title: "New Title",
-      content: "Updated Content"
+      content: "Updated Content",
     });
     console.log("Result:", updatePostResult);
 
     console.log("Calling getUserById with 1");
     const albert = await getUserById(1);
-    console.log("Result:", albert);
+    console.log("Result: ", JSON.stringify(albert, null, 4) );
+
+    console.log("Calling updatePost on posts[1], only updating tags");
+    const updatePostTagsResult = await updatePost(posts[1].id, {
+      tags: ["#youcandoanything", "#redfish", "#bluefish"]
+    });
+    console.log("Result:", updatePostTagsResult);
+
+    console.log("Calling getPostsByTagName with #happy");
+    const postsWithHappy = await getPostsByTagName("#happy");
+    JSON.stringify("Result:", postsWithHappy, null, 3);
+
 
     console.log("Finished database tests!");
   } catch (error) {
